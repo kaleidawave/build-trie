@@ -100,6 +100,12 @@ impl Parse for BuildTrie {
 
 struct Trie<K, V>(HashMap<K, Trie<K, V>>, Option<V>);
 
+impl<K, V> Trie<K, V> {
+    fn is_leaf(&self) -> bool {
+        self.0.is_empty()
+    }
+}
+
 #[proc_macro]
 pub fn build_trie(input: TokenStream) -> TokenStream {
     let BuildTrie {
@@ -127,43 +133,70 @@ pub fn build_trie(input: TokenStream) -> TokenStream {
     let mut arms: Vec<Arm> = Vec::new();
 
     fn expand_trie(
-        trie: Trie<char, Expr>,
+        trie: &Trie<char, Expr>,
         state_enum_name_ident: &Ident,
         result_enum_name_ident: &Ident,
         arms: &mut Vec<Arm>,
         states: &mut Vec<Ident>,
-        prev_state: Option<&Ident>
+        prev_state: &Ident
     ) {
+        let mut count: u8 = 0;
         for (key, value) in trie.0.iter() {
             let chr = LitChar::new(*key, Span::call_site().into());
-            let ident = if let Some(ident) = prev_state.as_ref() {
-                incremented_ident(ident)
+            if value.is_leaf() {
+                if let Some(value) = &value.1 {
+                    let arm: Arm = parse_quote! {
+                        (#state_enum_name_ident::#prev_state, #chr) => #result_enum_name_ident::Result(#value, true),
+                    };
+                    arms.push(arm);
+                }
             } else {
-                Ident::new("NoState", Span::call_site().into())
-            };
-
-            if let Some(ref value) = value.1 {
+                let new_state = {
+                    let as_string = prev_state.to_string();
+                    count += 1;
+                    if as_string.is_empty() || as_string == "NoState" {
+                        let mut string = String::new();
+                        string.push((count + 96) as char);
+                        Ident::new(&string, Span::call_site().into())
+                    } else {
+                        let mut string = as_string.clone();
+                        string.push((count + 96) as char);
+                        Ident::new(&string, Span::call_site().into())
+                    }
+                };
+                states.push(new_state.clone());
                 let arm: Arm = parse_quote! {
-                    (#state_enum_name_ident::#ident, #chr) => #result_enum_name_ident::Result(#value, true),
+                    (#state_enum_name_ident::#prev_state, #chr) => #result_enum_name_ident::NewState(#state_enum_name_ident::#new_state),
                 };
                 arms.push(arm);
+                expand_trie(
+                    value,
+                    state_enum_name_ident,
+                    result_enum_name_ident,
+                    arms,
+                    states,
+                    &new_state
+                );
+                if let Some(value) = &value.1 {
+                    let arm: Arm = parse_quote! {
+                        (#state_enum_name_ident::#new_state, _) => #result_enum_name_ident::Result(#value, false),
+                    };
+                    arms.push(arm);
+                }
             }
-        }
-
-        for (key, value) in trie.0.into_iter() {
-            expand_trie(
-                value, 
-                state_enum_name_ident, 
-                result_enum_name_ident, 
-                arms, 
-                states,
-                prev_state
-            );
         }
     }
 
-    expand_trie(trie, &state_enum_name, &result_enum_name, &mut arms, &mut states, None);
+    expand_trie(
+        &trie,
+        &state_enum_name,
+        &result_enum_name,
+        &mut arms,
+        &mut states,
+        &Ident::new("NoState", Span::call_site().into())
+    );
 
+    // ResultAndNewState(#result_name, #state_enum_name),
     let expanded = quote! {
         pub enum #result_enum_name {
             Result(#result_name, bool),
@@ -177,29 +210,12 @@ pub fn build_trie(input: TokenStream) -> TokenStream {
 
         pub fn #function_name(state: &#state_enum_name, chr: &char) -> #result_enum_name {
             match (state, chr) {
-                #( #arms ),*
-                (state, chr) => panic!("Invalid {:?} {}", state, chr)
+                #( #arms )*
+                (#state_enum_name::NoState, _) => #result_enum_name::NewState(#state_enum_name::NoState),
+                (state, chr) => panic!("Invalid {}", chr)
             }
         }
     };
 
     TokenStream::from(expanded)
-}
-
-fn incremented_ident(ident: &Ident) -> Ident {
-    let mut as_string = ident.to_string();
-    if as_string.is_empty() {
-        return Ident::new("a", Span::call_site().into());
-    }
-    if as_string.as_bytes().last().unwrap() == &('z' as u8) {
-        as_string.push('a');
-        Ident::new(&as_string, Span::call_site().into())
-    } else {
-        {
-            let bytes = unsafe { as_string.as_bytes_mut() };
-            *bytes.last_mut().unwrap() += 1;
-        }
-        println!("{}", as_string);
-        Ident::new(&as_string, Span::call_site().into())
-    }
 }
