@@ -1,5 +1,3 @@
-#![feature(proc_macro_diagnostic)]
-
 use proc_macro::{TokenStream, Span};
 use quote::quote;
 use std::collections::HashMap;

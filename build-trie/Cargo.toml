@@ -1,6 +1,6 @@
 [package]
 name = "build-trie"
-description = "A procedural macro for building a state machine / trie. Main use is for lexing multiple wide character wide tokens"
+description = "Procedural macro for generating match and state code representing a trie structure"
 version = "0.1.0"
 repository = "https://github.com/kaleidawave/build-trie"
 authors = ["kaleidawave <kaleidawave@gmail.com>"]
@@ -15,6 +15,6 @@ edition = "2018"
 proc-macro = true
 
 [dependencies]
-syn = { version = "1.0", features = ["full", "extra-traits"] }
+syn = { version = "1.0", features = ["full"] }
 quote = "1.0"
 
