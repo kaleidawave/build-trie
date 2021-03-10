@@ -2,7 +2,7 @@ use build_trie::build_trie;
 
 #[derive(Debug)]
 pub enum Tokens {
-    OpenBrace, CloseBrace, ArrowFunction, Equal, StrictEqual, Assign
+    OpenBrace, CloseBrace, ArrowFunction, Equal, StrictEqual, Assign, Literal(String)
 }
 
 build_trie! {
@@ -20,20 +20,83 @@ build_trie! {
     }
 }
 
+#[derive(PartialEq)]
+enum State {
+    Symbol(SymbolState),
+    Literal,
+    None,
+}
+
 fn main() {
-    let x = "{} {} == = === => =={".to_owned();
-    let mut state: SymbolState = SymbolState::NoState;
+    let source = "{} {} == = === => =={as==}}a".to_owned();
+    println!("Source:\n\"{}\"", source);
+
+    let mut state: State = State::None;
     let mut tokens = Vec::new();
-    for chr in x.chars() {
-        match get_symbol_from_state_and_char(&state, &chr) {
-            SymbolStateResult::Result(tok, used) => {
-                tokens.push(tok);
-                state = SymbolState::NoState;
+    let mut start: usize = 0;
+    for (idx, chr) in source.char_indices() {
+        match state {
+            State::Literal => {
+                if !matches!(chr, 'a'..='z' | 'A'..='Z') {
+                    tokens.push(Tokens::Literal(source[start..idx].to_owned()));
+                    start = 0;
+                    state = State::None;
+                }
             }
-            SymbolStateResult::NewState(new_state) => {
-                state = new_state;
+            State::Symbol(ref mut symbol_state) => {
+                match get_symbol_from_state_and_char(&symbol_state, &chr) {
+                    SymbolStateResult::Result(tok, used) => {
+                        tokens.push(tok);
+                        *symbol_state = SymbolState::None;
+                        state = State::None;
+                        if used {
+                            continue;
+                        }
+                    }
+                    SymbolStateResult::NewState(new_state) => {
+                        *symbol_state = new_state;
+                    }
+                }
+            }
+            State::None => {}
+        }
+        if state == State::None {
+            match chr {
+                'a'..='z' | 'A'..='Z' => {
+                    start = idx;
+                    state = State::Literal;
+                }
+                chr if chr.is_whitespace() => {}
+                chr => {
+                    match get_symbol_from_state_and_char(&SymbolState::None, &chr) {
+                        SymbolStateResult::Result(tok, _) => {
+                            tokens.push(tok);
+                        }
+                        SymbolStateResult::NewState(new_state) => {
+                            state = State::Symbol(new_state);
+                        }
+                    }
+                }
             }
         }
     }
-    println!("{:#?}", tokens);
+    // Trailing state
+    match state {
+        State::Literal => {
+            tokens.push(Tokens::Literal(source[start..].to_owned()));
+        }
+        State::Symbol(symbol_state) => {
+            match get_symbol_from_state_and_char(&symbol_state, &(0 as char)) {
+                SymbolStateResult::Result(tok, _) => {
+                    tokens.push(tok);
+                }
+                SymbolStateResult::NewState(_) => {
+                    panic!();
+                }
+            }
+        }
+        State::None => {}
+    }
+
+    println!("Resulting tokens:\n{:#?}", tokens);
 }

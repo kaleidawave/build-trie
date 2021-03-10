@@ -1,7 +1,12 @@
 [package]
 name = "build-trie"
+description = "A procedural macro for building a state machine / trie. Main use is for lexing multiple wide character wide tokens"
 version = "0.1.0"
+repository = "https://github.com/kaleidawave/build-trie"
 authors = ["kaleidawave <kaleidawave@gmail.com>"]
+keywords = ["parsing", "tokenization", "utils"]
+categories = ["parsing"]
+license = "MIT"
 edition = "2018"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html

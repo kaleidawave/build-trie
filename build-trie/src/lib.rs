@@ -106,6 +106,8 @@ impl<K, V> Trie<K, V> {
     }
 }
 
+const NO_STATE_NAME: &str = "None";
+
 #[proc_macro]
 pub fn build_trie(input: TokenStream) -> TokenStream {
     let BuildTrie {
@@ -154,7 +156,7 @@ pub fn build_trie(input: TokenStream) -> TokenStream {
                 let new_state = {
                     let as_string = prev_state.to_string();
                     count += 1;
-                    if as_string.is_empty() || as_string == "NoState" {
+                    if as_string.is_empty() || as_string == NO_STATE_NAME {
                         let mut string = String::new();
                         string.push((count + 96) as char);
                         Ident::new(&string, Span::call_site().into())
@@ -187,31 +189,33 @@ pub fn build_trie(input: TokenStream) -> TokenStream {
         }
     }
 
+    let no_state_ident = Ident::new(NO_STATE_NAME, Span::call_site().into());
+
     expand_trie(
         &trie,
         &state_enum_name,
         &result_enum_name,
         &mut arms,
         &mut states,
-        &Ident::new("NoState", Span::call_site().into())
+        &no_state_ident
     );
 
-    // ResultAndNewState(#result_name, #state_enum_name),
     let expanded = quote! {
         pub enum #result_enum_name {
             Result(#result_name, bool),
             NewState(#state_enum_name)
         }
 
+        #[derive(PartialEq)]
         pub enum #state_enum_name {
-            NoState,
+            None,
             #( #states ),*
         }
 
         pub fn #function_name(state: &#state_enum_name, chr: &char) -> #result_enum_name {
             match (state, chr) {
                 #( #arms )*
-                (#state_enum_name::NoState, _) => #result_enum_name::NewState(#state_enum_name::NoState),
+                (#state_enum_name::#no_state_ident, _) => #result_enum_name::NewState(#state_enum_name::#no_state_ident),
                 (state, chr) => panic!("Invalid {}", chr)
             }
         }
