@@ -204,7 +204,7 @@ pub fn build_trie(input: TokenStream) -> TokenStream {
             NewState(#state_enum_name)
         }
 
-        #[derive(PartialEq)]
+        #[derive(PartialEq, Debug, Copy, Clone)]
         pub enum #state_enum_name {
             None,
             #( #states ),*
