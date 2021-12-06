@@ -1,3 +1,7 @@
+# This crate has been replaced with [derive-finite-automaton](https://github.com/kaleidawave/derive-finite-automaton). Same functionality but redesigned API
+
+-----
+
 # build-trie
 
 [![Crates](https://img.shields.io/crates/v/build-trie.svg)](https://crates.io/crates/build-trie)
